@@ -25,11 +25,14 @@ class OBSWebsocketsManager:
     def set_filter_visibility(self, source_name, filter_name, filter_enabled=True):
         self.ws.call(requests.SetSourceFilterEnabled(sourceName=source_name, filterName=filter_name, filterEnabled=filter_enabled))
 
+    def _get_scene_item_id(self, scene_name, source_name):
+        response = self.ws.call(requests.GetSceneItemId(sceneName=scene_name, sourceName=source_name))
+        return response.datain['sceneItemId']
+
     # Set the visibility of any source
     def set_source_visibility(self, scene_name, source_name, source_visible=True):
-        response = self.ws.call(requests.GetSceneItemId(sceneName=scene_name, sourceName=source_name))
-        myItemID = response.datain['sceneItemId']
-        self.ws.call(requests.SetSceneItemEnabled(sceneName=scene_name, sceneItemId=myItemID, sceneItemEnabled=source_visible))
+        my_item_id = self._get_scene_item_id(scene_name, source_name)
+        self.ws.call(requests.SetSceneItemEnabled(sceneName=scene_name, sceneItemId=my_item_id, sceneItemEnabled=source_visible))
 
     # Returns the current text of a text source
     def get_text(self, source_name):
@@ -41,9 +44,8 @@ class OBSWebsocketsManager:
         self.ws.call(requests.SetInputSettings(inputName=source_name, inputSettings = {'text': new_text}))
 
     def get_source_transform(self, scene_name, source_name):
-        response = self.ws.call(requests.GetSceneItemId(sceneName=scene_name, sourceName=source_name))
-        myItemID = response.datain['sceneItemId']
-        response = self.ws.call(requests.GetSceneItemTransform(sceneName=scene_name, sceneItemId=myItemID))
+        my_item_id = self._get_scene_item_id(scene_name, source_name)
+        response = self.ws.call(requests.GetSceneItemTransform(sceneName=scene_name, sceneItemId=my_item_id))
         transform = {}
         transform["positionX"] = response.datain["sceneItemTransform"]["positionX"]
         transform["positionY"] = response.datain["sceneItemTransform"]["positionY"]
@@ -66,9 +68,8 @@ class OBSWebsocketsManager:
     # Note: there are other transform settings, like alignment, etc, but these feel like the main useful ones.
     # Use get_source_transform to see the full list
     def set_source_transform(self, scene_name, source_name, new_transform):
-        response = self.ws.call(requests.GetSceneItemId(sceneName=scene_name, sourceName=source_name))
-        myItemID = response.datain['sceneItemId']
-        self.ws.call(requests.SetSceneItemTransform(sceneName=scene_name, sceneItemId=myItemID, sceneItemTransform=new_transform))
+        my_item_id = self._get_scene_item_id(scene_name, source_name)
+        self.ws.call(requests.SetSceneItemTransform(sceneName=scene_name, sceneItemId=my_item_id, sceneItemTransform=new_transform))
 
     # Note: an input, like a text box, is a type of source. This will get *input-specific settings*, not the broader source settings like transform and scale
     # For a text source, this will return settings like its font, color, etc

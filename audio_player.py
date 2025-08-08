@@ -12,6 +12,8 @@ from mutagen.mp3 import MP3
 from pydub import AudioSegment
 from rich import print
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 class AudioManager:
 
     # Variables for recording audio from mic
@@ -47,7 +49,7 @@ class AudioManager:
                 # Some wav files don't work with Pygame's Music for some reason (works fine with Sound)
                 # If there's an error here that's likely why, so convert it to a format that Pygame can handle
                 # You can't convert the file in place so just convert it into a temp file that you delete later
-                converted_wav = "temp_convert.wav"
+                converted_wav = os.path.join(BASE_DIR, "temp_convert.wav")
                 subprocess.run(["ffmpeg", "-y", "-i", file_path, "-ar", "48000", "-ac", "2", "-c:a", "pcm_s16le", converted_wav])
                 converted = True
                 pygame.mixer.music.load(converted_wav)
@@ -106,7 +108,7 @@ class AudioManager:
     
     def combine_audio_files(self, input_files):
         # input_files is an array of file paths
-        output_file = os.path.join(os.path.abspath(os.curdir), f"___Msg{str(hash(' '.join(input_files)))}.wav")
+        output_file = os.path.join(BASE_DIR, f"___Msg{str(hash(' '.join(input_files)))}.wav")
         combined = None
         for file in input_files:
             audio = AudioSegment.from_file(file)
@@ -175,7 +177,7 @@ class AudioManager:
         self.is_recording = False
         time.sleep(0.1) # Just for safety, no clue if this is needed
 
-        filename = f"mic_recording_{int(time.time())}.wav"
+        filename = os.path.join(BASE_DIR, f"mic_recording_{int(time.time())}.wav")
         wave_file = wave.open(filename, 'wb')
         wave_file.setnchannels(self.channels)
         wave_file.setsampwidth(audio.get_sample_size(self.audio_format))

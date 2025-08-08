@@ -63,11 +63,12 @@ import logging
 from rich import print
 
 from audio_player import AudioManager
-from eleven_labs import ElevenLabsManager
+from coqui_tts import CoquiTTSManager
 from openai_chat import OpenAiManager
 from whisper_openai import WhisperManager
 from obs_websockets import OBSWebsocketsManager
 from ai_prompts import *
+from dotenv import load_dotenv
 
 socketio = SocketIO
 app = Flask(__name__)
@@ -84,9 +85,38 @@ def home():
 def connect():
     print("[green]The server connected to client!")
 
-obswebsockets_manager = OBSWebsocketsManager()
+load_dotenv()
+try:
+    obswebsockets_manager = OBSWebsocketsManager()
+except Exception:
+    class _NoObs:
+        def set_filter_visibility(self, *args, **kwargs):
+            pass
+        def set_scene(self, *args, **kwargs):
+            pass
+        def set_source_visibility(self, *args, **kwargs):
+            pass
+        def get_text(self, *args, **kwargs):
+            return ""
+        def set_text(self, *args, **kwargs):
+            pass
+        def get_source_transform(self, *args, **kwargs):
+            return {}
+        def set_source_transform(self, *args, **kwargs):
+            pass
+        def get_input_settings(self, *args, **kwargs):
+            return {}
+        def get_input_kind_list(self, *args, **kwargs):
+            return {}
+        def get_scene_items(self, *args, **kwargs):
+            return {}
+        def stop_stream(self, *args, **kwargs):
+            return {}
+    obswebsockets_manager = _NoObs()
+    print("[yellow]OBS not available; continuing without OBS integration.")
+
 whisper_manager = WhisperManager()
-elevenlabs_manager = ElevenLabsManager()
+coqui_manager = CoquiTTSManager()
 audio_manager = AudioManager()
 
 speaking_lock = threading.Lock()
@@ -144,7 +174,8 @@ class Agent():
                         agent.openai_manager.save_chat_to_backup()
 
             # Create audio response
-            tts_file = elevenlabs_manager.text_to_audio(openai_answer, self.voice, False)
+            # Save with filename prefix agent_<id> for downstream tools
+            tts_file = coqui_manager.text_to_audio(openai_answer, self.voice, False, "", f"agent_{self.agent_id}")
 
             # Process the audio to get subtitles
             audio_and_timestamps = whisper_manager.audio_to_text(tts_file, "sentence")
@@ -296,7 +327,7 @@ if __name__ == '__main__':
 
     print("[italic green]!!AGENTS ARE READY TO GO!!\nPress Num 1, Num 2, or Num3 to activate an agent.\nPress F7 to speak to the agents.")
 
-    socketio.run(app)
+    socketio.run(app, host="127.0.0.1", port=5151)
 
     agent1_thread.join()
     agent2_thread.join()

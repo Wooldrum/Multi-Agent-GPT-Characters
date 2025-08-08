@@ -5,6 +5,7 @@ from rich import print
 import base64
 import time
 import json
+from dotenv import load_dotenv
 
 class OpenAiManager:
     
@@ -15,8 +16,11 @@ class OpenAiManager:
         If the backup file already exists, then we don't add the system prompt into the convo history, because we assume that it already has a system prompt in it.
         Alternatively you manually add new system prompts into the chat history at any point. 
         """
-
-        self.client = OpenAI(api_key=os.environ['OPENAI_API_KEY'])
+        load_dotenv()
+        base_url = os.getenv('OPENAI_BASE_URL', os.getenv('OLLAMA_OPENAI_BASE_URL', 'http://localhost:11434/v1'))
+        api_key = os.getenv('OPENAI_API_KEY', os.getenv('OLLAMA_API_KEY', 'ollama'))
+        self.model = os.getenv('OPENAI_MODEL', os.getenv('OLLAMA_MODEL', 'gpt-oss-120b'))
+        self.client = OpenAI(api_key=api_key, base_url=base_url)
         self.logging = True # Determines whether the module should print out its results
         self.tiktoken_encoder = None # Used to calculate the token count in messages
         self.chat_history = []
@@ -100,7 +104,7 @@ class OpenAiManager:
 
         print("[yellow]\nAsking ChatGPT a question...")
         completion = self.client.chat.completions.create(
-          model="gpt-4o",
+          model=self.model,
           messages=chat_question
         )
 
@@ -131,7 +135,7 @@ class OpenAiManager:
         if self.logging:
             print("[yellow]\nAsking ChatGPT to analyze image...")
         completion = self.client.chat.completions.create(
-            model="gpt-4o",
+            model=self.model,
             messages=[
                 {
                 "role": "user",
@@ -204,9 +208,25 @@ class OpenAiManager:
 
         if self.logging:
             print("[yellow]\nAsking ChatGPT a question...")
+        # Normalize content arrays to plain strings for OpenAI-compatible backends (e.g., Ollama)
+        def _normalize_messages(messages):
+            norm = []
+            for m in messages:
+                role = m.get("role", "user")
+                content = m.get("content", "")
+                if isinstance(content, list):
+                    text_parts = []
+                    for part in content:
+                        if isinstance(part, dict) and part.get("type") == "text":
+                            text_parts.append(part.get("text", ""))
+                    content = "\n".join(text_parts)
+                norm.append({"role": role, "content": content})
+            return norm
+
+        normalized_history = _normalize_messages(self.chat_history)
         completion = self.client.chat.completions.create(
-          model="gpt-4o",
-          messages=self.chat_history
+          model=self.model,
+          messages=normalized_history
         )
 
         # Add this answer to our chat history

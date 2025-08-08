@@ -211,7 +211,8 @@ class Agent():
             # Create audio response
             # Save with filename prefix agent_<id> for downstream tools
             tts_file = coqui_manager.text_to_audio(llm_answer, self.voice, False, "", f"agent_{self.agent_id}")
-            audio_url = '/' + os.path.relpath(tts_file, os.path.abspath(os.curdir)).replace(os.sep, '/')
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            audio_url = '/' + os.path.relpath(tts_file, script_dir).replace(os.sep, '/')
 
             # Process the audio to get subtitles
             audio_and_timestamps = whisper_manager.audio_to_text(tts_file, "sentence")
@@ -235,6 +236,7 @@ class Agent():
                 # While the audio is playing, display each sentence on the front-end
                 # Each dictionary will look like: {'text': 'here is my speech', 'start_time': 11.58, 'end_time': 14.74}
                 socketio.emit('start_agent', {'agent_id': self.agent_id, 'audio_url': audio_url})
+                current_sentence = None
                 try:
                     for i in range(len(audio_and_timestamps)):
                         current_sentence = audio_and_timestamps[i]
@@ -245,8 +247,8 @@ class Agent():
                         if i < (len(audio_and_timestamps) - 1):
                             time_between_sentences = audio_and_timestamps[i+1]['start_time'] - current_sentence['end_time']
                             time.sleep(time_between_sentences)
-                except Exception:
-                    print(f"[magenta] Whoopsie! There was a problem and I don't know why. This was the current_sentence it broke on: {current_sentence}")
+                except Exception as e:
+                    print(f"[magenta] Whoopsie! There was a problem: {e}. This was the current_sentence it broke on: {current_sentence}")
                 socketio.emit('clear_agent', {'agent_id': self.agent_id})
             
                 time.sleep(1) # Wait one second before the next person talks, otherwise their audio gets cut off
@@ -305,26 +307,14 @@ class Human():
                 agents_paused = True
                 time.sleep(1) # Wait for a bit to ensure you don't press this twice in a row
             
-            # Activate Agent 1
-            if keyboard.is_pressed('num 1'):
-                print("[cyan]Activating Agent 1")
-                agents_paused = False
-                self.all_agents[0].activated = True
-                time.sleep(1) # Wait for a bit to ensure you don't press this twice in a row
-            
-            # Activate Agent 2
-            if keyboard.is_pressed('num 2'):
-                print("[cyan]Activating Agent 2")
-                agents_paused = False
-                self.all_agents[1].activated = True
-                time.sleep(1) # Wait for a bit to ensure you don't press this twice in a row
-            
-            # Activate Agent 3
-            if keyboard.is_pressed('num 3'):
-                print("[cyan]Activating Agent 3")
-                agents_paused = False
-                self.all_agents[2].activated = True
-                time.sleep(1) # Wait for a bit to ensure you don't press this twice in a row
+            # Activate agents dynamically based on number key pressed
+            for i, agent in enumerate(self.all_agents):
+                if keyboard.is_pressed(f'num {i+1}'):
+                    print(f"[cyan]Activating Agent {i+1}")
+                    agents_paused = False
+                    agent.activated = True
+                    time.sleep(1) # Wait for a bit to ensure you don't press this twice in a row
+                    break
             
             time.sleep(0.05)
                 

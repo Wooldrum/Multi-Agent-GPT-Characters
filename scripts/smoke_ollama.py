@@ -6,9 +6,9 @@ from openai import OpenAI
 
 def main():
     load_dotenv()
-    base_url = os.getenv('OPENAI_BASE_URL', 'http://localhost:11434/v1')
+    base_url = os.getenv('OPENAI_BASE_URL', 'http://127.0.0.1:11434/v1')
     api_key = os.getenv('OPENAI_API_KEY', 'ollama')
-    model = os.getenv('OPENAI_MODEL', 'gpt-oss-120b')
+    model = os.getenv('OPENAI_MODEL', 'llama3.1:8b-instruct')
 
     client = OpenAI(api_key=api_key, base_url=base_url)
     resp = client.chat.completions.create(

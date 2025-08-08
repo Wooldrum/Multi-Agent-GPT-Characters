@@ -21,8 +21,8 @@ class CoquiTTSManager:
         self.language_idx = os.getenv("LANGUAGE_IDX", "en")
         self.speaker_wav = os.getenv("SPEAKER_WAV", "").strip()
 
-        # Ensure output folder exists
-        self.output_dir = os.path.join(os.path.abspath(os.curdir), "audio_out")
+        out_dir = os.getenv("AUDIO_OUT_DIR", "audio_out")
+        self.output_dir = os.path.join(os.path.abspath(os.curdir), "static", out_dir)
         os.makedirs(self.output_dir, exist_ok=True)
 
     def text_to_audio(self, input_text: str, voice: str = "", save_as_wave: bool = True,

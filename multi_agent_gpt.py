@@ -9,9 +9,9 @@
     # Waits to be activated
     # Once it is activated (by Doug or by another agent):
         # Acquire conversation lock
-            # Get response from OpenAI
+            # Get response from LLM
             # Add this new response to all other agents' chat histories
-        # Creates TTS with ElevenLabs
+        # Create TTS with Coqui
         # Acquire speaking lock (so only 1 speaks at a time)
             # Pick another thread randomly, activate them
                 # Because this happens within the speaking lock, we are guaranteed that the other agents are inactive when this called.
@@ -62,17 +62,22 @@ import random
 import logging
 from rich import print
 
+import os
+
 from audio_player import AudioManager
 from coqui_tts import CoquiTTSManager
-from openai_chat import OpenAiManager
+from ollama_chat import OllamaChat
 from whisper_openai import WhisperManager
 from obs_websockets import OBSWebsocketsManager
 from ai_prompts import *
 from dotenv import load_dotenv
+from scripts.preflight import run_preflight
 
 socketio = SocketIO
 app = Flask(__name__)
-app.config['SERVER_NAME'] = "127.0.0.1:5151"
+host = os.getenv("HOST", "127.0.0.1")
+port = int(os.getenv("PORT", 5151))
+app.config['SERVER_NAME'] = f"{host}:{port}"
 socketio = SocketIO(app, async_mode="threading")
 log = logging.getLogger('werkzeug') # Sets flask app to only print error messages, rather than all info logs
 log.setLevel(logging.ERROR)
@@ -86,9 +91,40 @@ def connect():
     print("[green]The server connected to client!")
 
 load_dotenv()
-try:
-    obswebsockets_manager = OBSWebsocketsManager()
-except Exception:
+if not run_preflight():
+    raise SystemExit("Preflight checks failed")
+
+enable_obs = os.getenv("ENABLE_OBS", "false").lower() == "true"
+if enable_obs:
+    try:
+        obswebsockets_manager = OBSWebsocketsManager()
+    except Exception:
+        class _NoObs:
+            def set_filter_visibility(self, *args, **kwargs):
+                pass
+            def set_scene(self, *args, **kwargs):
+                pass
+            def set_source_visibility(self, *args, **kwargs):
+                pass
+            def get_text(self, *args, **kwargs):
+                return ""
+            def set_text(self, *args, **kwargs):
+                pass
+            def get_source_transform(self, *args, **kwargs):
+                return {}
+            def set_source_transform(self, *args, **kwargs):
+                pass
+            def get_input_settings(self, *args, **kwargs):
+                return {}
+            def get_input_kind_list(self, *args, **kwargs):
+                return {}
+            def get_scene_items(self, *args, **kwargs):
+                return {}
+            def stop_stream(self, *args, **kwargs):
+                return {}
+        obswebsockets_manager = _NoObs()
+        print("[yellow]OBS not available; continuing without OBS integration.")
+else:
     class _NoObs:
         def set_filter_visibility(self, *args, **kwargs):
             pass
@@ -113,7 +149,6 @@ except Exception:
         def stop_stream(self, *args, **kwargs):
             return {}
     obswebsockets_manager = _NoObs()
-    print("[yellow]OBS not available; continuing without OBS integration.")
 
 whisper_manager = WhisperManager()
 coqui_manager = CoquiTTSManager()
@@ -124,30 +159,30 @@ conversation_lock = threading.Lock()
 
 agents_paused = False
 
-# Class that represents a single ChatGPT Agent and its information
+# Class that represents a single agent and its information
 class Agent():
-    
-    def __init__(self, agent_name, agent_id, filter_name, all_agents, system_prompt, elevenlabs_voice):
+
+    def __init__(self, agent_name, agent_id, filter_name, all_agents, system_prompt, voice):
         # Flag of whether this agent should begin speaking
-        self.activated = False 
+        self.activated = False
         # Used to identify each agent in the conversation history
-        self.name = agent_name 
+        self.name = agent_name
         # an int used to ID this agent to the frontend code
-        self.agent_id = agent_id 
+        self.agent_id = agent_id
         # the name of the OBS filter to activate when this agent is speaking
         # You don't need to use OBS filters as part of this code, it's optional for adding extra visual flair
-        self.filter_name = filter_name 
+        self.filter_name = filter_name
         # A list of the other agents, so that you can pick one to randomly "activate" when you finish talking
         self.all_agents = all_agents
-        # The name of the Elevenlabs voice that you want this agent to speak with
-        self.voice = elevenlabs_voice
+        # The voice used for TTS
+        self.voice = voice
         # The name of the txt backup file where this agent's conversation history will be stored
         backup_file_name = f"backup_history_{agent_name}.txt"
-        # Initialize the OpenAi manager with a system prompt and a file that you would like to save your conversation too
+        # Initialize the chat manager with a system prompt and a file that you would like to save your conversation too
         # If the backup file isn't empty, then it will restore that backed up conversation for this agent
-        self.openai_manager = OpenAiManager(system_prompt, backup_file_name) 
-        # Optional - tells the OpenAi manager not to print as much
-        self.openai_manager.logging = False
+        self.chat_manager = OllamaChat(system_prompt, backup_file_name)
+        # Optional - tells the chat manager not to print as much
+        self.chat_manager.logging = False
 
     def run(self):
         while True:
@@ -162,20 +197,21 @@ class Agent():
             # This lock isn't necessary in theory, but for safety we will require this lock whenever updating any agent's convo history
             with conversation_lock:
                 # Generate a response to the conversation
-                openai_answer = self.openai_manager.chat_with_history("Okay what is your response? Try to be as chaotic and bizarre and adult-humor oriented as possible. Again, 3 sentences maximum.")
-                openai_answer = openai_answer.replace("*", "")
-                print(f'[magenta]Got the following response:\n{openai_answer}')
+                llm_answer = self.chat_manager.chat_with_history("Okay what is your response? Try to be as chaotic and bizarre and adult-humor oriented as possible. Again, 3 sentences maximum.")
+                llm_answer = llm_answer.replace("*", "")
+                print(f'[magenta]Got the following response:\n{llm_answer}')
 
                 # Add your new response into everyone else's chat history, then have them save their chat history
                 # This agent's responses are marked as "assistant" role to itself, so everyone elses messages are "user" role.
                 for agent in self.all_agents:
                     if agent is not self:
-                        agent.openai_manager.chat_history.append({"role": "user", "content": f"[{self.name}] {openai_answer}"})
-                        agent.openai_manager.save_chat_to_backup()
+                        agent.chat_manager.chat_history.append({"role": "user", "content": f"[{self.name}] {llm_answer}"})
+                        agent.chat_manager.save_chat_to_backup()
 
             # Create audio response
             # Save with filename prefix agent_<id> for downstream tools
-            tts_file = coqui_manager.text_to_audio(openai_answer, self.voice, False, "", f"agent_{self.agent_id}")
+            tts_file = coqui_manager.text_to_audio(llm_answer, self.voice, False, "", f"agent_{self.agent_id}")
+            audio_url = '/' + os.path.relpath(tts_file, os.path.abspath(os.curdir)).replace(os.sep, '/')
 
             # Process the audio to get subtitles
             audio_and_timestamps = whisper_manager.audio_to_text(tts_file, "sentence")
@@ -198,7 +234,7 @@ class Agent():
 
                 # While the audio is playing, display each sentence on the front-end
                 # Each dictionary will look like: {'text': 'here is my speech', 'start_time': 11.58, 'end_time': 14.74}
-                socketio.emit('start_agent', {'agent_id': self.agent_id})
+                socketio.emit('start_agent', {'agent_id': self.agent_id, 'audio_url': audio_url})
                 try:
                     for i in range(len(audio_and_timestamps)):
                         current_sentence = audio_and_timestamps[i]
@@ -250,8 +286,8 @@ class Human():
 
                     # Add Doug's response into all agents chat history
                     for agent in self.all_agents:
-                        agent.openai_manager.chat_history.append({"role": "user", "content": f"[{self.name}] {transcribed_audio}"})
-                        agent.openai_manager.save_chat_to_backup() # Tell the other agents to save their chat history to their backup file
+                        agent.chat_manager.chat_history.append({"role": "user", "content": f"[{self.name}] {transcribed_audio}"})
+                        agent.chat_manager.save_chat_to_backup() # Tell the other agents to save their chat history to their backup file
                 
                 print(f"[italic magenta] DougDoug has FINISHED speaking.")
 
@@ -327,7 +363,7 @@ if __name__ == '__main__':
 
     print("[italic green]!!AGENTS ARE READY TO GO!!\nPress Num 1, Num 2, or Num3 to activate an agent.\nPress F7 to speak to the agents.")
 
-    socketio.run(app, host="127.0.0.1", port=5151)
+    socketio.run(app, host=host, port=port, debug=False, use_reloader=False)
 
     agent1_thread.join()
     agent2_thread.join()

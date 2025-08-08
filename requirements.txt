@@ -1,9 +1,9 @@
-Flask==2.2.3
-Flask_SocketIO==5.3.3
+flask==3.0.3
+flask-socketio==5.3.6
 keyboard==0.13.5
 mutagen==1.46.0
-obs_websocket_py==1.0
-openai==1.44.0
+obs-websocket-py==1.0
+openai==1.40.6
 PyAudio==0.2.14
 pydub==0.25.1
 pygame==2.3.0
@@ -11,7 +11,7 @@ pygame_ce==2.3.0
 rich==13.8.0
 soundfile==0.12.1
 tiktoken==0.7.0
-torch==2.3.0+cu118
+torch
 transformers==4.40.2
 python-dotenv==1.0.1
 requests==2.32.3

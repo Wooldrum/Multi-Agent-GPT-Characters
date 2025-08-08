@@ -44,7 +44,7 @@ class AudioManager:
                 pygame.mixer.music.play()
                 converted = False
             except:
-                # Wav files from Elevenlabs don't work with Pygame's Music for some fucking reason (works fine with Sound)
+                # Some wav files don't work with Pygame's Music for some reason (works fine with Sound)
                 # If there's an error here that's likely why, so convert it to a format that Pygame can handle
                 # You can't convert the file in place so just convert it into a temp file that you delete later
                 converted_wav = "temp_convert.wav"

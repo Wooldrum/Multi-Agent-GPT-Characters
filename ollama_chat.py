@@ -7,19 +7,21 @@ import time
 import json
 from dotenv import load_dotenv
 
-class OpenAiManager:
-    
+
+class OllamaChat:
+
     def __init__(self, system_prompt=None, chat_history_backup=None):
         """
         Optionally provide a chat_history_backup txt file and a system_prompt string.
         If the backup file is provided, we load the chat history from it.
-        If the backup file already exists, then we don't add the system prompt into the convo history, because we assume that it already has a system prompt in it.
-        Alternatively you manually add new system prompts into the chat history at any point. 
+        If the backup file already exists, then we don't add the system prompt into the convo history, because we assume
+        that it already has a system prompt in it.
+        Alternatively you manually add new system prompts into the chat history at any point.
         """
         load_dotenv()
-        base_url = os.getenv('OPENAI_BASE_URL', os.getenv('OLLAMA_OPENAI_BASE_URL', 'http://localhost:11434/v1'))
-        api_key = os.getenv('OPENAI_API_KEY', os.getenv('OLLAMA_API_KEY', 'ollama'))
-        self.model = os.getenv('OPENAI_MODEL', os.getenv('OLLAMA_MODEL', 'gpt-oss-120b'))
+        base_url = os.getenv("OPENAI_BASE_URL", "http://127.0.0.1:11434/v1")
+        api_key = os.getenv("OPENAI_API_KEY", "ollama")
+        self.model = os.getenv("OPENAI_MODEL", "llama3.1:8b-instruct")
         self.client = OpenAI(api_key=api_key, base_url=base_url)
         self.logging = True # Determines whether the module should print out its results
         self.tiktoken_encoder = None # Used to calculate the token count in messages
@@ -102,17 +104,17 @@ class OpenAiManager:
             print("The length of this chat question is too large for the GPT model")
             return
 
-        print("[yellow]\nAsking ChatGPT a question...")
+        print("[yellow]\nQuerying model...")
         completion = self.client.chat.completions.create(
           model=self.model,
           messages=chat_question
         )
 
         # Process the answer
-        openai_answer = completion.choices[0].message.content
+        response_text = completion.choices[0].message.content
         if self.logging:
-            print(f"[green]\n{openai_answer}\n")
-        return openai_answer
+            print(f"[green]\n{response_text}\n")
+        return response_text
     
     # Analyze an image without history
     # Works with jpg, jpeg, or png. Alternatively can provide an image URL by setting local_image to False
@@ -133,7 +135,7 @@ class OpenAiManager:
         else:
             url = image_path # The provided image path is a URL
         if self.logging:
-            print("[yellow]\nAsking ChatGPT to analyze image...")
+            print("[yellow]\nAsking model to analyze image...")
         completion = self.client.chat.completions.create(
             model=self.model,
             messages=[
@@ -153,10 +155,10 @@ class OpenAiManager:
             ],
             max_tokens=4096, # max of 4096 tokens as of Dec 25th 2023
         )
-        openai_answer = completion.choices[0].message.content
+        response_text = completion.choices[0].message.content
         if self.logging:
-            print(f"[green]\n{openai_answer}\n")
-        return openai_answer
+            print(f"[green]\n{response_text}\n")
+        return response_text
     
 
     # Asks a question that includes the full conversation history
@@ -207,7 +209,7 @@ class OpenAiManager:
                 print(f"Popped a message! New token length is: {self.num_tokens_from_messages(self.chat_history)}")
 
         if self.logging:
-            print("[yellow]\nAsking ChatGPT a question...")
+            print("[yellow]\nQuerying model...")
         # Normalize content arrays to plain strings for OpenAI-compatible backends (e.g., Ollama)
         def _normalize_messages(messages):
             norm = []
@@ -236,8 +238,8 @@ class OpenAiManager:
         self.save_chat_to_backup()
 
         # Return answer
-        openai_answer = completion.choices[0].message.content
+        response_text = completion.choices[0].message.content
         if self.logging:
-            print(f"[green]\n{openai_answer}\n")
-        return openai_answer
+            print(f"[green]\n{response_text}\n")
+        return response_text
     

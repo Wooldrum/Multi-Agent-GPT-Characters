@@ -10,6 +10,11 @@ $(document).ready(function() {
 
         $('#agent-container-' + msg.agent_id).animate({ opacity: 1 }, 500);
 
+        if (msg.audio_url) {
+            const audio = new Audio(msg.audio_url);
+            audio.play();
+        }
+
         if (cb)
             cb();
     });

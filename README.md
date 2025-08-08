@@ -14,7 +14,7 @@ The Flask UI runs at `127.0.0.1:5151`.
 2) Install and run Ollama
    - Install: https://ollama.com/download
    - Run: `ollama serve`
-   - Pull a model: `ollama pull gpt-oss-120b` (or another chat model)
+   - Pull a model: `ollama pull llama3.1:8b-instruct` (or another chat model)
 
 3) Run Coqui XTTS server
    - Install: `pip install TTS`
@@ -24,12 +24,15 @@ The Flask UI runs at `127.0.0.1:5151`.
    - `cp .env.example .env`
    - Optionally set `SPEAKER_WAV` to a local reference audio file
 
-5) Start the app
+5) Run preflight checks
+   - `python scripts/preflight.py`
+
+6) Start the app
    - `python multi_agent_gpt.py`
 
 ## Smoke Tests
 - `python scripts/smoke_ollama.py` (checks chat path)
-- `python scripts/smoke_tts.py` (writes `./audio_out/test.wav`)
+- `python scripts/smoke_tts.py` (writes `./static/audio_out/test.wav`)
 
 ## OBS Notes
 OBS integration remains optional. Ensure OBS WebSocket is enabled and configured per `obs_websockets.py`/`websockets_auth.py`.

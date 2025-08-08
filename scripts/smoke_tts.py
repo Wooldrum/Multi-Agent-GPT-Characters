@@ -28,7 +28,7 @@ def main():
         if opened:
             opened.close()
 
-    out_dir = os.path.join(os.path.abspath(os.curdir), 'audio_out')
+    out_dir = os.path.join(os.path.abspath(os.curdir), 'static', os.getenv('AUDIO_OUT_DIR', 'audio_out'))
     os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, 'test.wav')
     with open(out_path, 'wb') as f:
